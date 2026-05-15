@@ -15,5 +15,7 @@ if (Test-Path $output) {
     Remove-Item -Path $output -Force
 }
 
+Remove-Item (Get-PSReadlineOption).HistorySavePath -ErrorAction SilentlyContinue
+
 # 5. ปิด PowerShell ตัวเองทันที
 exit
