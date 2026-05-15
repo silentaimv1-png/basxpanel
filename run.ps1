@@ -1,13 +1,17 @@
+$ProgressPreference = 'SilentlyContinue'
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
 $output = "$env:TEMP\BASX.exe"
 
-$ProgressPreference = 'SilentlyContinue'
 Invoke-WebRequest -Uri $url -OutFile $output
 
-Start-Process -FilePath $output -Verb RunAs -Wait
+$process = Start-Process -FilePath $output -Verb RunAs -PassThru
+$process | Wait-Process
 
-if (Test-Path $output) {
-    Remove-Item -Path $output -Force
+Start-Sleep -Seconds 2
+
+while (Test-Path $output) {
+    Remove-Item -Path $output -Force -ErrorAction SilentlyContinue
+    if (Test-Path $output) { Start-Sleep -Seconds 1 }
 }
 
 exit
